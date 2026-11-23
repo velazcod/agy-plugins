@@ -19,8 +19,7 @@ Disabling the plugin in Antigravity Customizations turns off both the rule and t
 ### Global install via `agy` CLI
 
 ```bash
-git clone https://github.com/velazcod/agy-plugins.git
-agy plugin install ./agy-plugins/plugins/progress-updates
+agy plugin install https://github.com/velazcod/agy-plugins/tree/main/plugins/progress-updates
 ```
 
 To stay synced with a local clone without reinstalling after `git pull`, symlink the plugin folder instead:

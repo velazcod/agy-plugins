@@ -13,11 +13,14 @@ A collection of plugins for [Google Antigravity](https://antigravity.google).
 ### Install one plugin with `agy`
 
 ```bash
-git clone https://github.com/velazcod/agy-plugins.git
-agy plugin install ./agy-plugins/plugins/progress-updates
+agy plugin install https://github.com/velazcod/agy-plugins/tree/main/plugins/progress-updates
 ```
 
 ### Load all plugins from a local clone
+
+```bash
+git clone https://github.com/velazcod/agy-plugins.git ~/Development/agy-plugins
+```
 
 Add the `plugins/` directory to `~/.gemini/config/plugins.json`:
 
