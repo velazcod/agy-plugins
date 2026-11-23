@@ -1,0 +1,11 @@
+{
+  "progress-updates": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "python3 ./hooks/progress-nudge.py",
+        "timeout": 5
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "progress-updates",
+  "displayName": "Progress Updates",
+  "version": "0.1.0",
+  "description": "Mid-run progress update rules and PreInvocation nudge hook for multi-step Antigravity tasks.",
+  "author": "velazcod",
+  "homepage": "https://github.com/velazcod/agy-plugins/tree/main/plugins/progress-updates",
+  "repository": "https://github.com/velazcod/agy-plugins",
+  "logo": "assets/logo.png"
+}
