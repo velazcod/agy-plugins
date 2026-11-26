@@ -4,8 +4,8 @@ Bundles the `Mid-Run Progress Updates` instruction rule (`rules/AGENTS.md`) and 
 
 ## Behavior
 
-1. **Rule (`rules/AGENTS.md`)**: Instructs the agent to surface assumptions, scope choices, pivots, and pre-change commitments in 1–2 plain sentences while keeping routine read/search loops quiet in chat (using `update_focus` for live activity instead of listing files read).
-2. **Nudge hook (`hooks/progress-nudge.py`)**: Scans the session transcript before each model call. After at least `minSilentTurns` (`6`) consecutive silent work turns **and** `minSilentSeconds` (`45`) elapsed seconds since the last user prompt, visible update, or hook nudge (ignoring UI-only turns with `update_focus` / `update_steps`), injects a conditional `systemMessage` reminder.
+1. **Rule (`rules/AGENTS.md`)**: Instructs the agent to surface assumptions, scope choices, findings, and pre-change commitments in 1–2 plain sentences (including alongside batched tool calls) while keeping routine read/search loops quiet in chat using `update_focus`.
+2. **Nudge hook (`hooks/progress-nudge.py`)**: Scans the session transcript before each model call. After at least `minSilentTurns` (`4`) consecutive silent work turns **and** `minSilentSeconds` (`30`) elapsed seconds since the last user prompt, visible update, or hook nudge (ignoring UI-only turns with `update_focus` / `update_steps`), injects a conditional `systemMessage` reminder. If the agent stays silent and hits the threshold a second consecutive time without posting a visible update, the hook escalates to `escalatedNudgeMessage`, requiring a 1-sentence finding, decision, or next action.
 
 Disabling the plugin in Antigravity Customizations turns off both the rule and the hook immediately.
 
@@ -39,11 +39,12 @@ Place a partial JSON object in `$PLUGIN_DATA/config.json` (typically `~/.gemini/
 
 ```json
 {
-  "minSilentTurns": 6,
-  "minSilentSeconds": 45,
+  "minSilentTurns": 4,
+  "minSilentSeconds": 30,
   "ignoredTools": ["update_focus", "update_steps"],
   "marker": "Mid-run progress update:",
-  "nudgeMessage": "If you are acting on an unstated assumption, changed direction, or reached a finding, state it in 1 plain sentence with your next tool call so the user can steer (never list files read). If your previously stated intent still holds, update update_focus and stay silent."
+  "nudgeMessage": "If you are acting on an unstated assumption, changed direction, or reached a finding, state it in 1 plain sentence with your next tool call so the user can steer (never list files read). If your previously stated intent still holds, update update_focus and stay silent.",
+  "escalatedNudgeMessage": "You have stayed silent across multiple check-ins. State your current finding, decision, or next concrete action in 1 plain sentence with your next tool call (never list files read)."
 }
 ```
 

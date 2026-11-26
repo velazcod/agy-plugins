@@ -14,8 +14,8 @@ HOOK_DIR = Path(__file__).resolve().parent
 PLUGIN_ROOT = Path(os.environ.get("PLUGIN_ROOT") or HOOK_DIR.parent).resolve()
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    "minSilentTurns": 6,
-    "minSilentSeconds": 45,
+    "minSilentTurns": 4,
+    "minSilentSeconds": 30,
     "ignoredTools": ["update_focus", "update_steps"],
     "marker": "Mid-run progress update:",
     "nudgeMessage": (
@@ -23,6 +23,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "reached a finding, state it in 1 plain sentence with your next tool "
         "call so the user can steer (never list files read). If your "
         "previously stated intent still holds, update update_focus and stay silent."
+    ),
+    "escalatedNudgeMessage": (
+        "You have stayed silent across multiple check-ins. State your current "
+        "finding, decision, or next concrete action in 1 plain sentence with "
+        "your next tool call (never list files read)."
     ),
 }
 
@@ -136,9 +141,10 @@ def evaluate_payload(
     )
     marker = str(config["marker"]).strip()
     nudge_message = str(config["nudgeMessage"]).strip()
-    nudge_text = f"{marker} {nudge_message}".strip() if marker else nudge_message
+    escalated_message = str(config.get("escalatedNudgeMessage", "")).strip()
 
     silent_turns = 0
+    consecutive_nudges = 0
     last_reset_ts: datetime | None = None
 
     try:
@@ -155,8 +161,15 @@ def evaluate_payload(
                 entry_type = entry.get("type")
                 entry_ts = _parse_timestamp(entry.get("created_at"))
 
-                if entry_type == "USER_INPUT" or _is_nudge_entry(entry, marker, line):
+                if entry_type == "USER_INPUT":
                     silent_turns = 0
+                    consecutive_nudges = 0
+                    last_reset_ts = entry_ts
+                    continue
+
+                if _is_nudge_entry(entry, marker, line):
+                    silent_turns = 0
+                    consecutive_nudges += 1
                     last_reset_ts = entry_ts
                     continue
 
@@ -166,6 +179,7 @@ def evaluate_payload(
                 content = entry.get("content")
                 if isinstance(content, str) and content.strip():
                     silent_turns = 0
+                    consecutive_nudges = 0
                     last_reset_ts = entry_ts
                     continue
 
@@ -188,6 +202,13 @@ def evaluate_payload(
         elapsed_seconds = (current_time - last_reset_ts).total_seconds()
         if elapsed_seconds < min_silent_seconds:
             return {}
+
+    selected_message = (
+        escalated_message
+        if consecutive_nudges >= 1 and escalated_message
+        else nudge_message
+    )
+    nudge_text = f"{marker} {selected_message}".strip() if marker else selected_message
 
     return {
         "injectSteps": [

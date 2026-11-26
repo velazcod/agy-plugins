@@ -1,7 +1,8 @@
 {
-  "minSilentTurns": 6,
-  "minSilentSeconds": 45,
+  "minSilentTurns": 4,
+  "minSilentSeconds": 30,
   "ignoredTools": ["update_focus", "update_steps"],
   "marker": "Mid-run progress update:",
-  "nudgeMessage": "If you are acting on an unstated assumption, changed direction, or reached a finding, state it in 1 plain sentence with your next tool call so the user can steer (never list files read). If your previously stated intent still holds, update update_focus and stay silent."
+  "nudgeMessage": "If you are acting on an unstated assumption, changed direction, or reached a finding, state it in 1 plain sentence with your next tool call so the user can steer (never list files read). If your previously stated intent still holds, update update_focus and stay silent.",
+  "escalatedNudgeMessage": "You have stayed silent across multiple check-ins. State your current finding, decision, or next concrete action in 1 plain sentence with your next tool call (never list files read)."
 }

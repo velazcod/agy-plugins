@@ -74,7 +74,7 @@ class ProgressNudgeTests(unittest.TestCase):
         entries: list[dict] = [
             {"type": "USER_INPUT", "created_at": _iso(0), "content": "Inspect files"}
         ]
-        for idx in range(6):
+        for idx in range(4):
             entries.append(
                 {
                     "type": "PLANNER_RESPONSE",
@@ -89,7 +89,7 @@ class ProgressNudgeTests(unittest.TestCase):
         result = progress_nudge.evaluate_payload(
             {"transcriptPath": str(transcript)},
             self._default_config(),
-            now=BASE_TIME + timedelta(seconds=25),
+            now=BASE_TIME + timedelta(seconds=20),
         )
         self.assertEqual(result, {})
 
@@ -97,7 +97,7 @@ class ProgressNudgeTests(unittest.TestCase):
         entries: list[dict] = [
             {"type": "USER_INPUT", "created_at": _iso(0), "content": "Inspect files"}
         ]
-        for idx in range(6):
+        for idx in range(4):
             entries.append(
                 {
                     "type": "PLANNER_RESPONSE",
@@ -112,7 +112,7 @@ class ProgressNudgeTests(unittest.TestCase):
         result = progress_nudge.evaluate_payload(
             {"transcriptPath": str(transcript)},
             self._default_config(),
-            now=BASE_TIME + timedelta(seconds=50),
+            now=BASE_TIME + timedelta(seconds=35),
         )
         injected = result["injectSteps"][0]["systemMessage"]["systemMessage"]
         self.assertIn("Mid-run progress update:", injected)
@@ -120,7 +120,7 @@ class ProgressNudgeTests(unittest.TestCase):
 
     def test_falls_back_to_turn_count_when_timestamps_missing(self) -> None:
         entries: list[dict] = [{"type": "USER_INPUT", "content": "Inspect files"}]
-        for _ in range(6):
+        for _ in range(4):
             entries.append(
                 {
                     "type": "PLANNER_RESPONSE",
@@ -141,7 +141,7 @@ class ProgressNudgeTests(unittest.TestCase):
         entries: list[dict] = [
             {"type": "USER_INPUT", "created_at": _iso(0), "content": "Inspect files"}
         ]
-        for idx in range(5):
+        for idx in range(3):
             entries.append(
                 {
                     "type": "PLANNER_RESPONSE",
@@ -153,7 +153,7 @@ class ProgressNudgeTests(unittest.TestCase):
         entries.append(
             {
                 "type": "PLANNER_RESPONSE",
-                "created_at": _iso(55),
+                "created_at": _iso(35),
                 "content": "",
                 "tool_calls": [{"name": "update_focus"}, {"name": "update_steps"}],
             }
@@ -164,7 +164,7 @@ class ProgressNudgeTests(unittest.TestCase):
         result = progress_nudge.evaluate_payload(
             {"transcriptPath": str(transcript)},
             self._default_config(),
-            now=BASE_TIME + timedelta(seconds=60),
+            now=BASE_TIME + timedelta(seconds=40),
         )
         self.assertEqual(result, {})
 
@@ -178,17 +178,17 @@ class ProgressNudgeTests(unittest.TestCase):
                     "content": "",
                     "tool_calls": [{"name": "read_file"}],
                 }
-                for idx in range(1, 7)
+                for idx in range(1, 5)
             ],
             {
                 "source": "SYSTEM_SDK",
                 "type": "SYSTEM_MESSAGE",
-                "created_at": _iso(65),
+                "created_at": _iso(45),
                 "content": "Mid-run progress update: If you are acting on an unstated assumption...",
             },
             {
                 "type": "PLANNER_RESPONSE",
-                "created_at": _iso(70),
+                "created_at": _iso(50),
                 "content": "",
                 "tool_calls": [{"name": "update_focus"}, {"name": "read_file"}],
             },
@@ -202,6 +202,117 @@ class ProgressNudgeTests(unittest.TestCase):
             now=BASE_TIME + timedelta(seconds=120),
         )
         self.assertEqual(result, {})
+
+    def test_escalates_on_second_consecutive_silent_nudge(self) -> None:
+        entries: list[dict] = [
+            {"type": "USER_INPUT", "created_at": _iso(0), "content": "Inspect files"},
+            *[
+                {
+                    "type": "PLANNER_RESPONSE",
+                    "created_at": _iso(idx * 8),
+                    "content": "",
+                    "tool_calls": [{"name": "read_file"}],
+                }
+                for idx in range(1, 5)
+            ],
+            {
+                "source": "SYSTEM_SDK",
+                "type": "SYSTEM_MESSAGE",
+                "created_at": _iso(35),
+                "content": "Mid-run progress update: If you are acting on an unstated assumption...",
+            },
+            *[
+                {
+                    "type": "PLANNER_RESPONSE",
+                    "created_at": _iso(35 + idx * 8),
+                    "content": "",
+                    "tool_calls": [{"name": "read_file"}],
+                }
+                for idx in range(1, 5)
+            ],
+        ]
+        transcript = _write_transcript(entries)
+        self.addCleanup(transcript.unlink, missing_ok=True)
+
+        result = progress_nudge.evaluate_payload(
+            {"transcriptPath": str(transcript)},
+            self._default_config(),
+            now=BASE_TIME + timedelta(seconds=70),
+        )
+        injected = result["injectSteps"][0]["systemMessage"]["systemMessage"]
+        self.assertIn("Mid-run progress update:", injected)
+        self.assertIn("stayed silent across multiple check-ins", injected)
+        self.assertNotIn("stay silent", injected)
+
+    def test_visible_update_resets_escalation_back_to_conditional(self) -> None:
+        entries: list[dict] = [
+            {"type": "USER_INPUT", "created_at": _iso(0), "content": "Inspect files"},
+            {
+                "source": "SYSTEM_SDK",
+                "type": "SYSTEM_MESSAGE",
+                "created_at": _iso(35),
+                "content": "Mid-run progress update: If you are acting on an unstated assumption...",
+            },
+            {
+                "type": "PLANNER_RESPONSE",
+                "created_at": _iso(40),
+                "content": "Narrowed the bug to the auth middleware; checking token refresh next.",
+                "tool_calls": [{"name": "read_file"}],
+            },
+            *[
+                {
+                    "type": "PLANNER_RESPONSE",
+                    "created_at": _iso(40 + idx * 8),
+                    "content": "",
+                    "tool_calls": [{"name": "read_file"}],
+                }
+                for idx in range(1, 5)
+            ],
+        ]
+        transcript = _write_transcript(entries)
+        self.addCleanup(transcript.unlink, missing_ok=True)
+
+        result = progress_nudge.evaluate_payload(
+            {"transcriptPath": str(transcript)},
+            self._default_config(),
+            now=BASE_TIME + timedelta(seconds=75),
+        )
+        injected = result["injectSteps"][0]["systemMessage"]["systemMessage"]
+        self.assertIn("stay silent", injected)
+        self.assertNotIn("stayed silent across multiple check-ins", injected)
+
+    def test_empty_escalated_message_falls_back_to_nudge_message(self) -> None:
+        entries: list[dict] = [
+            {"type": "USER_INPUT", "created_at": _iso(0), "content": "Inspect files"},
+            {
+                "source": "SYSTEM_SDK",
+                "type": "SYSTEM_MESSAGE",
+                "created_at": _iso(35),
+                "content": "Mid-run progress update: Custom conditional.",
+            },
+            *[
+                {
+                    "type": "PLANNER_RESPONSE",
+                    "created_at": _iso(35 + idx * 8),
+                    "content": "",
+                    "tool_calls": [{"name": "read_file"}],
+                }
+                for idx in range(1, 5)
+            ],
+        ]
+        transcript = _write_transcript(entries)
+        self.addCleanup(transcript.unlink, missing_ok=True)
+
+        config = self._default_config()
+        config["nudgeMessage"] = "Custom conditional."
+        config["escalatedNudgeMessage"] = ""
+        result = progress_nudge.evaluate_payload(
+            {"transcriptPath": str(transcript)},
+            config,
+            now=BASE_TIME + timedelta(seconds=70),
+        )
+        injected = result["injectSteps"][0]["systemMessage"]["systemMessage"]
+        self.assertEqual(injected, "Mid-run progress update: Custom conditional.")
 
     def test_visible_update_resets_elapsed_timer(self) -> None:
         entries: list[dict] = [
@@ -219,7 +330,7 @@ class ProgressNudgeTests(unittest.TestCase):
                     "content": "",
                     "tool_calls": [{"name": "read_file"}],
                 }
-                for idx in range(1, 7)
+                for idx in range(1, 5)
             ],
         ]
         transcript = _write_transcript(entries)
@@ -228,7 +339,7 @@ class ProgressNudgeTests(unittest.TestCase):
         result = progress_nudge.evaluate_payload(
             {"transcriptPath": str(transcript)},
             self._default_config(),
-            now=BASE_TIME + timedelta(seconds=70),
+            now=BASE_TIME + timedelta(seconds=60),
         )
         self.assertEqual(result, {})
 
@@ -253,7 +364,7 @@ class ProgressNudgeTests(unittest.TestCase):
             )
             self.assertEqual(config["minSilentTurns"], 3)
             self.assertEqual(config["nudgeMessage"], "Custom nudge.")
-            self.assertEqual(config["minSilentSeconds"], 45)
+            self.assertEqual(config["minSilentSeconds"], 30)
 
     def test_cli_stdin_stdout_contract(self) -> None:
         old_start = (datetime.now(timezone.utc) - timedelta(seconds=90)).strftime(
@@ -262,7 +373,7 @@ class ProgressNudgeTests(unittest.TestCase):
         entries: list[dict] = [
             {"type": "USER_INPUT", "created_at": old_start, "content": "Inspect"}
         ]
-        for _ in range(6):
+        for _ in range(4):
             entries.append(
                 {
                     "type": "PLANNER_RESPONSE",
